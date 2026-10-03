@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment files across all apps
+.env
+.env.local
+.env.*.local
+
+# IDE and OS metadata
+.DS_Store
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/

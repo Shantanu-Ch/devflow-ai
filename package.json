@@ -1,9 +1,21 @@
 {
   "name": "devflow-ai",
   "version": "1.0.0",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shantanu-Ch/devflow-ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Shantanu-Ch/devflow-ai/issues"
+  },
+  "homepage": "https://github.com/Shantanu-Ch/devflow-ai#readme"
 }
