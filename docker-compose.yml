@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: ankane/pgvector:v0.5.1
     container_name: devflow-db
     environment:
       POSTGRES_USER: devflow

@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 import { TaskStatus, Priority } from '@prisma/client';
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) {}
 
   private async checkWorkspaceAccess(workspaceId: string, userId: string) {
     const member = await this.prisma.workspaceMember.findUnique({
@@ -29,7 +33,7 @@ export class TasksService {
   ) {
     await this.checkWorkspaceAccess(dto.workspaceId, userId);
 
-    return this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -45,6 +49,13 @@ export class TasksService {
         subtasks: true,
       },
     });
+
+    // Asynchronously generate & store pgvector embedding in background
+    this.aiService.upsertTaskEmbedding(task.id, task.title, task.description || '').catch((err) => {
+      console.error('Task embedding creation error:', err);
+    });
+
+    return task;
   }
 
   async findAllInWorkspace(workspaceId: string, userId: string) {
@@ -78,7 +89,7 @@ export class TasksService {
 
     await this.checkWorkspaceAccess(task.workspaceId, userId);
 
-    return this.prisma.task.update({
+    const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         ...(dto.title && { title: dto.title }),
@@ -94,6 +105,15 @@ export class TasksService {
         subtasks: true,
       },
     });
+
+    // Update embedding if title or description changes
+    if (dto.title || dto.description !== undefined) {
+      this.aiService.upsertTaskEmbedding(updatedTask.id, updatedTask.title, updatedTask.description || '').catch((err) => {
+        console.error('Task embedding update error:', err);
+      });
+    }
+
+    return updatedTask;
   }
 
   async addSubtask(taskId: string, userId: string, title: string) {

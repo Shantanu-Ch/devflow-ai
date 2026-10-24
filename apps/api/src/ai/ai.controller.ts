@@ -18,4 +18,10 @@ export class AiController {
     const priority = await this.aiService.suggestPriority(body.title, body.description);
     return { priority };
   }
+
+  @Post('search')
+  async semanticSearch(@Body() body: { query: string; workspaceId: string }) {
+    const results = await this.aiService.semanticSearch(body.query, body.workspaceId);
+    return { results };
+  }
 }
