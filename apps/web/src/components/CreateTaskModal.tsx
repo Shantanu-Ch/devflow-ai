@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { generateSubtasks, suggestPriority } from '../api/ai';
 
 interface CreateTaskModalProps {
   workspaceId: string;
@@ -12,10 +13,49 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
+  const [subtasks, setSubtasks] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [loadingPriority, setLoadingPriority] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  const handleAiSubtasks = async () => {
+    if (!title.trim()) {
+      setError('Please enter a task title first.');
+      return;
+    }
+    setError('');
+    setLoadingSubtasks(true);
+    try {
+      const generated = await generateSubtasks(title, description);
+      setSubtasks((prev) => [...prev, ...generated]);
+    } catch (err: any) {
+      console.error('Failed to generate subtasks:', err);
+      setError('AI Subtask generation failed. Please try again.');
+    } finally {
+      setLoadingSubtasks(false);
+    }
+  };
+
+  const handleAiPriority = async () => {
+    if (!title.trim()) {
+      setError('Please enter a task title first.');
+      return;
+    }
+    setError('');
+    setLoadingPriority(true);
+    try {
+      const suggested = await suggestPriority(title, description);
+      setPriority(suggested);
+    } catch (err: any) {
+      console.error('Failed to suggest priority:', err);
+      setError('AI Priority suggestion failed. Please try again.');
+    } finally {
+      setLoadingPriority(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,15 +63,25 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
     setError('');
 
     try {
-      await api.post('/tasks', {
+      const response = await api.post('/tasks', {
         workspaceId,
         title,
         description,
-        priority, // Will send 'LOW', 'MEDIUM', 'HIGH', or 'URGENT'
+        priority,
       });
+
+      const createdTask = response.data;
+
+      if (subtasks.length > 0 && createdTask?.id) {
+        for (const st of subtasks) {
+          await api.post(`/tasks/${createdTask.id}/subtasks`, { title: st });
+        }
+      }
+
       setTitle('');
       setDescription('');
       setPriority('MEDIUM');
+      setSubtasks([]);
       onTaskCreated();
       onClose();
     } catch (err: any) {
@@ -62,9 +112,10 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-1 w-full rounded-md border p-2 text-sm focus:border-blue-500 focus:outline-none"
-              placeholder="e.g. Implement authentication guard"
+              placeholder="e.g. Implement user authentication flow"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700">Description</label>
             <textarea
@@ -75,6 +126,28 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
               placeholder="Add details about this task..."
             />
           </div>
+
+          {/* AI Helper Actions with Independent Controls */}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleAiSubtasks}
+              disabled={loadingSubtasks || loading}
+              className="rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition cursor-pointer"
+            >
+              {loadingSubtasks ? 'Generating...' : '✨ Auto Subtasks'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAiPriority}
+              disabled={loadingPriority || loading}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition cursor-pointer"
+            >
+              {loadingPriority ? 'Suggesting...' : '✨ Suggest Priority'}
+            </button>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700">Priority</label>
             <select
@@ -88,6 +161,22 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
               <option value="URGENT">Urgent</option>
             </select>
           </div>
+
+          {subtasks.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                Subtasks ({subtasks.length})
+              </label>
+              <ul className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2 bg-gray-50">
+                {subtasks.map((st, idx) => (
+                  <li key={idx} className="text-xs text-gray-700 flex items-center gap-1.5">
+                    <span className="text-purple-600 font-bold">•</span> {st}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex justify-end space-x-2 pt-2">
             <button
               type="button"
@@ -99,7 +188,7 @@ export default function CreateTaskModal({ workspaceId, isOpen, onClose, onTaskCr
             <button
               type="submit"
               disabled={loading}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer font-medium"
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Creating...' : 'Create Task'}
             </button>
